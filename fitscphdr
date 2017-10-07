@@ -1,0 +1,86 @@
+#!/usr/bin/env python
+from __future__ import print_function
+import argparse
+import warnings
+from astropy.io import fits
+
+# python 2/3 compatability
+try:
+    input = raw_input
+except NameError:
+    pass
+
+
+def copy_header(fits_source, fits_target, clobber=False, interactive=True,
+                fits_new=""):
+    """Copy the header of fitsname to the header of outname.
+    
+    If a header entry would be overwritten and clobber is False,
+    this will warn the user and fail to overwrite the header entry.
+
+    Parameters
+    ----------
+    :fits_source: str, name of file from which to copy the header
+    :fits_header: str, name of file to which to copy the header
+    :clobber: bool, default False, if True then overwrite header entries
+              without warning
+    :interactive: bool, default True, if True (and clobber is set to True), 
+                  prompt for overwrite
+    :fits_new: str, default "", new fits file to write to
+
+    Returns
+    -------
+    None
+    """
+    warning_str = ("FITS entry {} is already in {} and has value {}.")
+    source_hdu = fits.open(fits_source)[0]
+    source_header = source_hdu.header
+    target_hdu = fits.open(fits_target)[0]
+    target_header = target_hdu.header
+    for key, value in source_header.items():
+        if key.strip().lower() == 'comment':
+            continue
+        if key in target_header and not clobber:
+            old_value = target_header[key]
+            warnings.warn(warning_str.format(key, fits_target, old_value))
+            if interactive:
+                valid_response = False
+                overwrite_entry = False
+                while not valid_response:
+                    print("Overwrite with {}? [y]/n?".format(value))
+                    response = input()
+                    response = response.strip().lower()
+                    if response in ("y", "yes", ""):
+                        valid_response = True
+                        overwrite_entry = True
+                    elif response in ("n", "no"):
+                        valid_response = True
+                        overwrite_entry = False
+                    else:
+                        warnings.warn("Invalid response, please choose [y]/n!")
+                if overwrite_entry:
+                    target_header[key] = value
+        elif key in target_header and clobber:
+            target_header[key] = value
+        else:
+            continue
+    new_hdu = fits.PrimaryHDU(header=target_header, data=target_hdu.data)
+    new_hdu.writeto(fits_new)
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='Copy a fits header.')
+    parser.add_argument('sourcefits', action='store', type=str,
+                        help='source fits header file')
+    parser.add_argument('targetfits', action='store', type=str,
+                        help='target fits header file')
+    parser.add_argument('newfits', action='store', type=str,
+                        help='name for new fits file')
+    parser.add_argument('--clobber', action='store_true',
+                        help='overwrite existing fits header entries')
+    args = parser.parse_args()
+
+    fits_source, fits_target, fits_new = args.sourcefits, args.targetfits, args.newfits
+    clobber = args.clobber
+    copy_header(fits_source, fits_target, clobber=clobber, fits_new=fits_new)

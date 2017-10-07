@@ -1,0 +1,69 @@
+#!/usr/bin/env python
+from __future__ import print_function
+import argparse
+import numpy as np
+from astropy.io import fits
+from astropy import wcs
+
+
+def crop(fitsname, xlow, xhigh, ylow, yhigh,  outname=None):
+    """Makes a smaller fits file from the given file.
+
+    Credit to keflavich on SO:
+    http://stackoverflow.com/questions/32728218/cropping-very-large-fits-files-using-specified-boundaries
+
+    Parameters
+    -----------
+    :fitsname: str, name of input file
+    :xlow: int, lesser value of x-axis cut (inclusive)
+    :xhigh: int, higher value of x-axis cut (exclusive)
+    :ylow: int, lesser value of y-axis cut (inclusive)
+    :yhigh: int, higher value of y-axis cut (exclusive)
+    :outname: str, name of output file
+
+    Returns
+    -------
+    :data: numpy 2d array of cropped data, of shape
+           (yhigh - ylow, xhigh - xlow)
+    """
+    # slice
+    s = np.s_[ylow: yhigh, xlow: xhigh]
+
+    old_data = fits.getdata(fitsname)
+    old_header = fits.getheader(fitsname)
+    old_wcs = wcs.WCS(old_header)
+
+    new_file = fits.PrimaryHDU()
+    new_file.data = old_data[s]
+    new_file.header = old_header
+    new_file.header.update(old_wcs[s].to_header())
+
+    # write to output
+    if outname is not None:
+        new_file.writeto(outname, clobber=True)
+
+    return new_file
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='Crop a fits file.')
+    parser.add_argument('fitsin', action='store', type=str,
+                        help='input fits file')
+    parser.add_argument('fitsout', action='store', type=str,
+                        help='output fits file')
+    parser.add_argument('xlow', action='store', type=int,
+                        help='lower x-axis cutoff (inclusive)')
+    parser.add_argument('ylow', action='store', type=int,
+                        help='lower y-axis cutoff (inclusive)')
+    parser.add_argument('xhigh', action='store', type=int,
+                        help='higher x-axis cutoff (exclusive)')
+    parser.add_argument('yhigh', action='store', type=int,
+                        help='higher y-axis cutoff (exclusive)')
+    args = parser.parse_args()
+
+    fitsin, fitsout = args.fitsin, args.fitsout
+    xlow, xhigh = args.xlow, args.xhigh
+    ylow, yhigh = args.ylow, args.yhigh
+
+    new_hdu = crop(fitsin, xlow, xhigh, ylow, yhigh, outname=fitsout)
